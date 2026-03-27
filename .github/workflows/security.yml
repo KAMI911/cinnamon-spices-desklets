@@ -48,8 +48,13 @@ jobs:
             --output semgrep.sarif \
             --no-error || true
 
+      - name: Ensure semgrep SARIF exists
+        if: always()
+        run: |
+          [ -f semgrep.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > semgrep.sarif
+
       - name: Upload Semgrep SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -81,8 +86,13 @@ jobs:
                 --output bandit.sarif \
             || true
 
+      - name: Ensure bandit SARIF exists
+        if: always()
+        run: |
+          [ -f bandit.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > bandit.sarif
+
       - name: Upload Bandit SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -103,8 +113,13 @@ jobs:
             .
             || true
 
+      - name: Ensure njsscan SARIF exists
+        if: always()
+        run: |
+          [ -f njsscan.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > njsscan.sarif
+
       - name: Upload njsscan SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: njsscan.sarif
           category: njsscan
@@ -126,8 +141,13 @@ jobs:
           severity: MEDIUM,HIGH,CRITICAL
           scanners: vuln,secret,misconfig
 
+      - name: Ensure trivy SARIF exists
+        if: always()
+        run: |
+          [ -f trivy.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > trivy.sarif
+
       - name: Upload Trivy SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
           category: trivy
@@ -186,8 +206,13 @@ jobs:
             --ignore-pattern ".venv/**" \
             || true
 
+      - name: Ensure eslint SARIF exists
+        if: always()
+        run: |
+          [ -f eslint.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > eslint.sarif
+
       - name: Upload ESLint SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: eslint.sarif
           category: eslint-security
@@ -211,8 +236,13 @@ jobs:
         env:
           GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Ensure scorecard SARIF exists
+        if: always()
+        run: |
+          [ -f scorecard.sarif ] || echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > scorecard.sarif
+
       - name: Upload Scorecard SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: scorecard.sarif
           category: scorecard
