@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Semgrep (security + best practices)
         run: |
-          semgrep ci \
+          semgrep scan \
             --config "p/javascript" \
             --config "p/python" \
             --config "p/secrets" \
