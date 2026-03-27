@@ -174,36 +174,44 @@ jobs:
 
       - name: Create ESLint config
         run: |
-          cat > .eslintrc-security.json << 'EOF'
-          {
-            "env": { "es2021": true },
-            "plugins": ["security", "no-unsanitized"],
-            "rules": {
-              "security/detect-eval-with-expression": "error",
-              "security/detect-non-literal-regexp": "warn",
-              "security/detect-non-literal-require": "warn",
-              "security/detect-object-injection": "warn",
-              "security/detect-possible-timing-attacks": "warn",
-              "security/detect-pseudoRandomBytes": "error",
-              "security/detect-unsafe-regex": "error",
-              "no-unsanitized/method": "error",
-              "no-unsanitized/property": "error",
-              "no-eval": "error",
-              "no-implied-eval": "error",
-              "no-new-func": "error"
-            }
-          }
-          EOF
+          cat > eslint.config.mjs << 'ESLINTEOF'
+          import security from 'eslint-plugin-security';
+          import noUnsanitized from 'eslint-plugin-no-unsanitized';
+
+          export default [
+            {
+              ignores: ['node_modules/**', '.venv/**'],
+            },
+            {
+              files: ['**/*.js'],
+              plugins: {
+                security,
+                'no-unsanitized': noUnsanitized,
+              },
+              rules: {
+                'security/detect-eval-with-expression': 'error',
+                'security/detect-non-literal-regexp': 'warn',
+                'security/detect-non-literal-require': 'warn',
+                'security/detect-object-injection': 'warn',
+                'security/detect-possible-timing-attacks': 'warn',
+                'security/detect-pseudoRandomBytes': 'error',
+                'security/detect-unsafe-regex': 'error',
+                'no-unsanitized/method': 'error',
+                'no-unsanitized/property': 'error',
+                'no-eval': 'error',
+                'no-implied-eval': 'error',
+                'no-new-func': 'error',
+              },
+            },
+          ];
+          ESLINTEOF
 
       - name: Run ESLint security scan
         run: |
           npx eslint \
-            --config .eslintrc-security.json \
             --format @microsoft/eslint-formatter-sarif \
             --output-file eslint.sarif \
-            "**/*.js" \
-            --ignore-pattern "node_modules/**" \
-            --ignore-pattern ".venv/**" \
+            . \
             || true
 
       - name: Ensure eslint SARIF exists
