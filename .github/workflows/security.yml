@@ -1,0 +1,219 @@
+name: Security and Code Quality Scan
+
+on:
+  workflow_run:
+    workflows: ["Validate spices and scan for safe patterns"]
+    types:
+      - completed
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  gitleaks:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  semgrep:
+    name: SAST - Semgrep (JS + Python)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep (security + best practices)
+        run: |
+          semgrep ci \
+            --config "p/javascript" \
+            --config "p/python" \
+            --config "p/secrets" \
+            --config "p/owasp-top-ten" \
+            --sarif \
+            --output semgrep.sarif \
+            --no-error || true
+
+      - name: Upload Semgrep SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+        if: always()
+
+  bandit:
+    name: Python Security (Bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Bandit
+        run: pip install bandit[sarif]
+
+      - name: Run Bandit on Python files
+        run: |
+          find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./.venv/*" \
+            | xargs bandit \
+                --severity-level medium \
+                --confidence-level medium \
+                --format sarif \
+                --output bandit.sarif \
+            || true
+
+      - name: Upload Bandit SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+        if: always()
+
+  njsscan:
+    name: JavaScript Security (njsscan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run njsscan
+        uses: ajinabraham/njsscan-action@master
+        with:
+          args: >
+            --sarif
+            --output njsscan.sarif
+            .
+            || true
+
+      - name: Upload njsscan SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: njsscan.sarif
+          category: njsscan
+        if: always()
+
+  trivy:
+    name: Vulnerability Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          severity: MEDIUM,HIGH,CRITICAL
+          scanners: vuln,secret,misconfig
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+        if: always()
+
+  eslint-security:
+    name: JavaScript Linting + Security (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install ESLint and security plugins
+        run: |
+          npm install --save-dev \
+            eslint \
+            eslint-plugin-security \
+            eslint-plugin-no-unsanitized \
+            @microsoft/eslint-formatter-sarif
+
+      - name: Create ESLint config
+        run: |
+          cat > .eslintrc-security.json << 'EOF'
+          {
+            "env": { "es2021": true },
+            "plugins": ["security", "no-unsanitized"],
+            "rules": {
+              "security/detect-eval-with-expression": "error",
+              "security/detect-non-literal-regexp": "warn",
+              "security/detect-non-literal-require": "warn",
+              "security/detect-object-injection": "warn",
+              "security/detect-possible-timing-attacks": "warn",
+              "security/detect-pseudoRandomBytes": "error",
+              "security/detect-unsafe-regex": "error",
+              "no-unsanitized/method": "error",
+              "no-unsanitized/property": "error",
+              "no-eval": "error",
+              "no-implied-eval": "error",
+              "no-new-func": "error"
+            }
+          }
+          EOF
+
+      - name: Run ESLint security scan
+        run: |
+          npx eslint \
+            --config .eslintrc-security.json \
+            --format @microsoft/eslint-formatter-sarif \
+            --output-file eslint.sarif \
+            "**/*.js" \
+            --ignore-pattern "node_modules/**" \
+            --ignore-pattern ".venv/**" \
+            || true
+
+      - name: Upload ESLint SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: eslint.sarif
+          category: eslint-security
+        if: always()
+
+  scorecard:
+    name: Supply Chain Security (OSSF Scorecard)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Run OSSF Scorecard
+        uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Scorecard SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scorecard.sarif
+          category: scorecard
+        if: always()
