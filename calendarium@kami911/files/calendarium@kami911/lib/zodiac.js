@@ -89,7 +89,7 @@ var Zodiac = {
         "\uD83C\uDF33",  // 🌳 Wood  U+1F333 deciduous tree
         "\uD83D\uDD25",  // 🔥 Fire  U+1F525
         "\u26F0",        // ⛰  Earth U+26F0  mountain
-        "\u2699",        // ⚙  Metal U+2699  gear
+        "\uD83D\uDEE1",  // 🛡  Metal U+1F6E1 shield
         "\uD83D\uDCA7"   // 💧 Water U+1F4A7 droplet
     ],
 
