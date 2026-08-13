@@ -290,6 +290,11 @@ CalendariumDesklet.prototype = {
         let results = name.trim() ? Geocoder.search(name) : [];
         if (results.length > 0) {
             let r = results[0];
+            // Replace whatever the user typed with the geocoder's canonical,
+            // correctly-capitalized name (e.g. "london" -> "London") so the
+            // displayed label always matches how the city is normally
+            // written, not the user's original casing/spelling variant.
+            this.settings.setValue("city" + n + "-name", r.name);
             this.settings.setValue("city" + n + "-lat", r.lat);
             this.settings.setValue("city" + n + "-lon", r.lon);
             this.settings.setValue("city" + n + "-tz",  r.tz || "");
