@@ -85,7 +85,7 @@
         "section-altcal": {
             "type": "section",
             "title": "Alternate Calendars",
-            "keys": ["show-julian", "show-hebrew", "show-islamic", "show-persian"]
+            "keys": ["show-julian", "show-hebrew", "show-islamic", "show-persian", "show-french-republican"]
         },
 
         "section-location": {
@@ -686,5 +686,11 @@
         "type": "checkbox",
         "default": false,
         "description": "Show Persian calendar date"
+    },
+    "show-french-republican": {
+        "type": "checkbox",
+        "default": false,
+        "description": "Show French Republican calendar date",
+        "tooltip": "Equinox-based (the historically accurate rule): each Republican year begins at the true autumnal equinox, so 5 or 6 intercalary days fall out naturally rather than from a fixed leap-year formula."
     }
 }

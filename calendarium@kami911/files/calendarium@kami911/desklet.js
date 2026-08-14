@@ -229,6 +229,7 @@ CalendariumDesklet.prototype = {
         s.bind("show-hebrew",  "show_hebrew",  cb);
         s.bind("show-islamic", "show_islamic", cb);
         s.bind("show-persian", "show_persian", cb);
+        s.bind("show-french-republican", "show_french_republican", cb);
 
         // Appearance
         s.bind("icon-size",        "icon_size",        cb);
@@ -1278,7 +1279,7 @@ CalendariumDesklet.prototype = {
     },
 
     _updateAltCal: function(now) {
-        let anyEnabled = this.show_julian || this.show_hebrew || this.show_islamic || this.show_persian;
+        let anyEnabled = this.show_julian || this.show_hebrew || this.show_islamic || this.show_persian || this.show_french_republican;
         this._labelAltCal.visible = anyEnabled;
         if (!anyEnabled) return;
 
@@ -1291,6 +1292,7 @@ CalendariumDesklet.prototype = {
         if (this.show_hebrew)  lines.push(_("Hebrew date")  + ": " + Calendars.formatHebrew(y, m, d));
         if (this.show_islamic) lines.push(_("Islamic date") + ": " + Calendars.formatIslamic(y, m, d));
         if (this.show_persian) lines.push(_("Persian date") + ": " + Calendars.formatPersian(y, m, d));
+        if (this.show_french_republican) lines.push(_("French Republican date") + ": " + Calendars.formatFrenchRepublican(y, m, d));
 
         this._labelAltCal.set_text(lines.join("\n"));
     },

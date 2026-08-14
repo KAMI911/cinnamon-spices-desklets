@@ -330,6 +330,10 @@ msgstr "Iszlám dátum"
 msgid "Persian date"
 msgstr "Perzsa dátum"
 
+#. desklet.js:1295
+msgid "French Republican date"
+msgstr "Francia köztársasági dátum"
+
 #. metadata.json->name
 msgid "Calendarium"
 msgstr "Kalendárium"
@@ -955,3 +959,11 @@ msgstr "Iszlám naptár dátumának megjelenítése"
 #. settings-schema.json->show-persian->description
 msgid "Show Persian calendar date"
 msgstr "Perzsa naptár dátumának megjelenítése"
+
+#. settings-schema.json->show-french-republican->description
+msgid "Show French Republican calendar date"
+msgstr "Francia köztársasági naptár dátumának megjelenítése"
+
+#. settings-schema.json->show-french-republican->tooltip
+msgid "Equinox-based (the historically accurate rule): each Republican year begins at the true autumnal equinox, so 5 or 6 intercalary days fall out naturally rather than from a fixed leap-year formula."
+msgstr "Napéjegyenlőség-alapú (a történelmileg pontos szabály): minden köztársasági év a valódi őszi napéjegyenlőséggel kezdődik, így az 5 vagy 6 pótnap természetesen adódik, nem egy rögzített szökőév-képletből."
