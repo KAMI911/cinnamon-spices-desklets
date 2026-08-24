@@ -16,6 +16,15 @@ const GIB_TO_MIB = 1024;    // 1 GiB = 1,042 MiB
 const KB_TO_B = 1000;       // 1 KB  = 1,000 B
 const KIB_TO_B = 1024;      // 1 KiB = 1,024 B
 
+const CPU_TEMP_MIN =  20;    // Minimum CPU temperature
+const CPU_TEMP_MAX = 100;    // Maximum CPU temperature
+const GPU_TEMP_MIN =  20;    // Minimum GPU temperature
+const GPU_TEMP_MAX = 100;    // Maximum GPU temperature
+const CPU_FANSPEED_MAX = 4000; // CPU fan graph full-scale speed
+const CPU_FAN_RETRY_MIN = 5;   // Initial retry delay in seconds
+const CPU_FAN_RETRY_MAX = 300; // Maximum retry delay in seconds
+const CPU_FAN_RETRY_MULTIPLIER = 2;
+
 const UUID = "system-monitor-graph@rcassani";
 const DESKLET_PATH = imports.ui.deskletManager.deskletMeta[UUID].path;
 
@@ -94,17 +103,21 @@ SystemMonitorGraph.prototype = {
         // initialize settings
         this.settings = new Settings.DeskletSettings(this, this.metadata["uuid"], desklet_id);
         this.settings.bindProperty(Settings.BindingDirection.IN, "type", "type", this.on_setting_changed);
+        this.settings.bindProperty(Settings.BindingDirection.IN, "cpu-variable", "cpu_variable", this.on_setting_changed);
+        this.settings.bindProperty(Settings.BindingDirection.IN, "temperature-units-cpu", "temperature_units_cpu", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "data-prefix-ram", "data_prefix_ram", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "data-prefix-swap", "data_prefix_swap", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "data-prefix-hdd", "data_prefix_hdd", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "data-prefix-gpumem", "data_prefix_gpumem", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "data-prefix-network", "data_prefix_network", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "network-interface", "network_interface", this.on_setting_changed);
+        this.settings.bindProperty(Settings.BindingDirection.IN, "network-label", "network_label", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "battery-name", "battery_name", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "filesystem", "filesystem", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "filesystem-label", "filesystem_label", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "gpu-manufacturer", "gpu_manufacturer", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "gpu-variable", "gpu_variable", this.on_setting_changed);
+        this.settings.bindProperty(Settings.BindingDirection.IN, "temperature-units-gpu", "temperature_units_gpu", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "gpu-id", "gpu_id", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "refresh-interval", "refresh_interval", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "duration", "duration", this.on_setting_changed);
@@ -122,6 +135,7 @@ SystemMonitorGraph.prototype = {
         this.settings.bindProperty(Settings.BindingDirection.IN, "line-color-network-down", "line_color_network_down", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "line-color-network-up", "line_color_network_up", this.on_setting_changed);
         this.settings.bindProperty(Settings.BindingDirection.IN, "line-color-battery", "line_color_battery", this.on_setting_changed);
+
 
         // initialize desklet GUI
         this.setupUI();
@@ -178,9 +192,15 @@ SystemMonitorGraph.prototype = {
             this.net_max_scale = 1; // Auto-scaling for network graph
             // battery values
             this.battery_percent  = NaN;
-            this.battery_capacity = NaN;
             this.battery_status   = "";
             this.battery_time     = "";
+            // temperature values
+            this.cpu_temperature = NaN;
+            this.gpu_temperature = NaN;
+            // cpu fan values
+            this.cpu_fan_rpm = NaN;
+            this.cpu_fan_file = "";
+            this.cpu_fan_discovery_complete = false;
 
             // set colors
             switch (this.type) {
@@ -208,6 +228,30 @@ SystemMonitorGraph.prototype = {
                   this.line_color = this.line_color_battery;
                   break;
             }
+
+            // set files
+            // find file for overall CPU temperature
+            let cpu_path_temp = "/sys/class/hwmon/";
+            // test for Intel ("Package id 0")
+            this.get_temperature_file_by_label(cpu_path_temp, 'Package id 0', (result) => {
+                if (result !== "") {
+                    this.cpu_temperature_file = result;
+                } else {
+                    // test for AMD ("Tct1")
+                    this.get_temperature_file_by_label(cpu_path_temp, 'Tctl', (result) => {
+                        this.cpu_temperature_file = result;
+                    });
+                }
+            });
+            if (this.type == "cpu" && this.cpu_variable == "fan") {
+                this.rediscover_cpu_fan();
+            }
+            // find file for overall AMD GPU temperature
+            let gpu_path_temp = "/sys/class/drm/card" + this.gpu_id + "/device/hwmon/";
+            this.get_temperature_file_by_label(gpu_path_temp, 'edge', (result) => {
+                this.gpu_amd_temperature_file = result;
+            });
+
             this.first_run = false;
         }
 
@@ -240,10 +284,47 @@ SystemMonitorGraph.prototype = {
         // current values
         switch (this.type) {
           case "cpu":
-              this.get_cpu_use();
-              value = this.cpu_use / 100;
-              text1 = _("CPU");
-              text2 = Math.round(this.cpu_use).toString() + "%";
+              switch (this.cpu_variable) {
+                  case "usage":
+                      this.get_cpu_use();
+                      value = this.cpu_use / 100;
+                      text1 = _("CPU");
+                      text2 = Math.round(this.cpu_use).toString() + "%";
+                      break;
+
+                  case "temperature":
+                      this.get_cpu_temperature(this.cpu_temperature_file);
+                      // scale CPU temperature based on [CPU_TEMP_MIN, CPU_TEMP_MAX]
+                      value = 1.0 * (this.cpu_temperature - CPU_TEMP_MIN) / (CPU_TEMP_MAX - CPU_TEMP_MIN);
+                      value = value < 0 ? 0 : value > 1 ? 1 : value;
+                      text1 = _("CPU Temperature");
+                      if (this.temperature_units_cpu == "C") {
+                          text2 = this.cpu_temperature.toString() + "°C";
+                      } else if (this.temperature_units_cpu == "F") {
+                          text2 = Math.round(this.cpu_temperature * 9 / 5 + 32).toString() + "°F";
+                      }
+                      break;
+
+                  case "fan":
+                      this.get_cpu_fan_speed(this.cpu_fan_file);
+                      value = isNaN(this.cpu_fan_rpm) ? 0 : this.cpu_fan_rpm / CPU_FANSPEED_MAX;
+                      value = value < 0 ? 0 : value > 1 ? 1 : value;
+                      text1 = _("CPU Fan");
+                      text2_size = Math.max(1, text2_size - 1);
+                      if (!isNaN(this.cpu_fan_rpm)) {
+                          if (this.cpu_fan_rpm >= 1) {
+                              text2 = this.cpu_fan_rpm + " " + _("RPM");
+                              text3 = "🟢 " + _("On");
+                          } else {
+                              text3 = "🔴 " + _("Off");
+                          }
+                      } else if (this.cpu_fan_discovery_complete) {
+                          text2 = _("Not detected");
+                      } else {
+                          text2 = _("Detecting...");
+                      }
+                      break;
+              }
               break;
 
           case "ram":
@@ -342,6 +423,25 @@ SystemMonitorGraph.prototype = {
                       text3 = this.gpu_mem[1].toFixed(1) + " / "
                             + this.gpu_mem[0].toFixed(1) + " " + gpumem_prefix;
                       break;
+                  case "temperature":
+                      switch (this.gpu_manufacturer) {
+                          case "nvidia":
+                              this.get_nvidia_gpu_temperature();
+                              break;
+                          case "amdgpu":
+                              this.get_amdgpu_gpu_temperature(this.gpu_amd_temperature_file);
+                              break;
+                      }
+                      // scale GPU temperature based on [GPU_TEMP_MIN, GPU_TEMP_MAX]
+                      value = 1.0 * (this.gpu_temperature - GPU_TEMP_MIN) / (GPU_TEMP_MAX - GPU_TEMP_MIN);
+                      value = value < 0 ? 0 : value > 1 ? 1 : value;
+                      text1 = _("GPU Temperature");
+                      if (this.temperature_units_gpu == "C") {
+                          text2 = this.gpu_temperature.toString() + "°C";
+                      } else if (this.temperature_units_gpu == "F") {
+                          text2 = Math.round(this.gpu_temperature * 9 / 5 + 32).toString() + "°F";
+                      }
+                      break;
               }
               break;
 
@@ -349,8 +449,15 @@ SystemMonitorGraph.prototype = {
               this.get_network_values();
               // For network, we don't use the single 'value' variable as we have dual lines
               value = 0; // Not used for network type
-              text1 = _("Network");
-              
+              // Network label
+              text1 = this.network_label;
+              if (text1 == "") {
+                  if (this.network_interface.trim()  == "") {
+                      text1 = _("Network");
+                  } else {
+                      text1 = this.network_interface.trim();
+                  }
+              }
               // Format speeds with appropriate units
               let down_speed_formatted = this.format_network_speed(this.net_down_speed);
               let up_speed_formatted = this.format_network_speed(this.net_up_speed);
@@ -361,7 +468,7 @@ SystemMonitorGraph.prototype = {
 
           case "battery":
               this.get_battery_use();
-              value = this.battery_capacity;
+              value = this.battery_percent / 100.0;
               text1 = _("Battery");
               text2 = this.battery_percent + "%";
               let prefix = (this.battery_status == "Charging") ? "⚡ " : (this.battery_percent <= 20 ? "🪫 " : "🔋 ");
@@ -934,6 +1041,19 @@ SystemMonitorGraph.prototype = {
         );
     },
 
+    get_nvidia_gpu_temperature: function() {
+        spawnAsyncWithOutput(
+            ['/usr/bin/nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv', '--id='+ this.gpu_id],
+            (success, out_string) => {
+                if (!success || !out_string) {
+                    this.gpu_temperature = 0;
+                    return;
+                }
+                this.gpu_temperature = parseInt(out_string.match(/[^\r\n]+/g)[1]);
+            }
+        );
+    },
+
     get_amdgpu_gpu_use: function() {
       // Sysfs directory with files related to the chosen gpu
       let gpu_dir = "/sys/class/drm/card" + this.gpu_id + "/device/";
@@ -982,6 +1102,21 @@ SystemMonitorGraph.prototype = {
       });
     },
 
+    get_amdgpu_gpu_temperature: function(temperature_file) {
+        if(temperature_file == null || temperature_file == "") return;
+        // File contains temperature, integer number in celsius * 1000
+        Gio.file_new_for_path(temperature_file).load_contents_async(null, (file, response) => {
+            try {
+                let [success, contents, tag] = file.load_contents_finish(response);
+                if (success) {
+                    this.gpu_temperature = Math.round(parseInt(ByteArray.toString(contents)) / 1000);
+                }
+                GLib.free(contents);
+            } catch(error) {
+                global.log('GPU AMD temperature file read error: ' + error.toString());
+            }
+        });
+    },
 
     get_battery_use: function() {
         // Sysfs directory for battery info
@@ -996,7 +1131,6 @@ SystemMonitorGraph.prototype = {
                 if (success) {
                     let percent = parseInt(ByteArray.toString(contents));
                     this.battery_percent = percent >= 100 ? 100 : percent;
-                    this.battery_capacity = this.battery_percent / 100.0;
                 }
                 GLib.free(contents);
             } catch(error) {
@@ -1032,6 +1166,103 @@ SystemMonitorGraph.prototype = {
         let hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
         let result = `${hours}:${minutes}`;
         return (result == "00:00") ? "--:--" : result;
-	}
+	},
 
+    get_cpu_temperature: function(temperature_file) {
+        if(temperature_file == null || temperature_file == "") return;
+        // File contains temperature, integer number in celsius * 1000
+        Gio.file_new_for_path(temperature_file).load_contents_async(null, (file, response) => {
+            try {
+                let [success, contents, tag] = file.load_contents_finish(response);
+                if (success) {
+                    this.cpu_temperature = Math.round(parseInt(ByteArray.toString(contents)) / 1000);
+                }
+                GLib.free(contents);
+            } catch(error) {
+                global.log('CPU temperature file read error: ' + error.toString());
+            }
+        });
+    },
+
+    get_cpu_fan_file: function(callback) {
+        // Prefer explicitly labelled CPU fans, then known laptop cooling drivers.
+        // Do not guess from an unrelated, unlabelled hwmon fan.
+        let argv = ['/bin/sh', '-c', "for fan_file in $({ grep -s -i -l -d skip -E 'cpu|processor' /sys/class/hwmon/hwmon*/fan*_label | sed 's/_label/_input/'; grep -s -l -d skip -E '^(dell_smm|thinkpad)$' /sys/class/hwmon/hwmon*/name | sed 's#/name#/fan1_input#'; }); do [ -r \"$fan_file\" ] && { printf '%s' \"$fan_file\"; break; }; done"];
+        spawnAsyncWithOutput(argv, (success, output) => {
+            callback(success && output ? output.trim() : "");
+        });
+    },
+
+    schedule_cpu_fan_retry: function() {
+        if (this.cpu_fan_retry_delay == null) this.cpu_fan_retry_delay = CPU_FAN_RETRY_MIN;
+        this.cpu_fan_file = "";
+        this.cpu_fan_rpm = NaN;
+        this.cpu_fan_discovery_complete = true;
+        this.cpu_fan_next_discovery_time = GLib.get_monotonic_time()
+            + (this.cpu_fan_retry_delay * GLib.USEC_PER_SEC);
+        this.cpu_fan_retry_delay = Math.min(
+            this.cpu_fan_retry_delay * CPU_FAN_RETRY_MULTIPLIER,
+            CPU_FAN_RETRY_MAX);
+    },
+
+    rediscover_cpu_fan: function() {
+        // Clear a stale hwmon path first. Missing or failed sensors are retried
+        // with bounded backoff instead of spawning another lookup every refresh.
+        if (this.cpu_fan_discovery_in_progress) return;
+        if (this.cpu_fan_retry_delay == null) this.cpu_fan_retry_delay = CPU_FAN_RETRY_MIN;
+        this.cpu_fan_discovery_in_progress = true;
+        this.cpu_fan_file = "";
+        this.cpu_fan_rpm = NaN;
+        this.cpu_fan_discovery_complete = false;
+        this.get_cpu_fan_file((result) => {
+            this.cpu_fan_discovery_in_progress = false;
+            if (result == "") {
+                this.schedule_cpu_fan_retry();
+            } else {
+                this.cpu_fan_file = result;
+                this.cpu_fan_discovery_complete = true;
+                this.cpu_fan_next_discovery_time = 0;
+            }
+        });
+    },
+
+    get_cpu_fan_speed: function(fan_file) {
+        if(fan_file == null || fan_file == "") {
+            if (this.cpu_fan_discovery_complete
+                && GLib.get_monotonic_time() >= this.cpu_fan_next_discovery_time) {
+                this.rediscover_cpu_fan();
+            }
+            return;
+        }
+        Gio.file_new_for_path(fan_file).load_contents_async(null, (file, response) => {
+            try {
+                let [success, contents, tag] = file.load_contents_finish(response);
+                if (success) {
+                    let rpm = parseInt(ByteArray.toString(contents).trim());
+                    this.cpu_fan_rpm = isNaN(rpm) ? NaN : Math.max(0, rpm);
+                    this.cpu_fan_retry_delay = CPU_FAN_RETRY_MIN;
+                    this.cpu_fan_next_discovery_time = 0;
+                } else {
+                    this.schedule_cpu_fan_retry();
+                }
+                GLib.free(contents);
+            } catch(error) {
+                this.schedule_cpu_fan_retry();
+                global.log('CPU fan speed file read error: ' + error.toString());
+            }
+        });
+    },
+
+    get_temperature_file_by_label: function(path, label, callback) {
+        // search for temperture file: 'path'/*/temp*_input associated to file path/*/temp*_label with content 'label'
+        let argv = ['/bin/sh', '-c', "grep -s -l -d skip '" + label + "' " + path + "*/temp*_label | sed 's/_label/_input/' | head -n 1"];
+        spawnAsyncWithOutput(argv, (success, output) => {
+            if (success && output && output.trim() !== "") {
+                callback(output.trim());
+            } else {
+                global.log('Temperature file search error for label: ' + label);
+                callback("");
+            }
+        });
+    },
 };
