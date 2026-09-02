@@ -130,6 +130,8 @@ CalendariumDesklet.prototype = {
             global.logError("Calendarium: _setupUI crash [" + e.message + "] stack:\n" + (e.stack || "(no stack)"));
             throw e;
         }
+        // Detect the computer's location from its system timezone (async).
+        this._resolveSystemLocationAsync();
         // Load locale data files asynchronously; refresh again when done.
         this._loadNamedayData(() => this._refresh());
     },
@@ -339,32 +341,99 @@ CalendariumDesklet.prototype = {
     },
 
     /**
-     * The computer's own IANA timezone name (e.g. "Europe/Budapest"), or null
-     * if it cannot be determined.
+     * Read a text file asynchronously; cb(text) with the contents as a string,
+     * or cb(null) on any failure. Never blocks the main loop.
      */
-    _systemTimezoneName: function() {
+    _readTextFileAsync: function(path, cb) {
+        let f = Gio.File.new_for_path(path);
+        f.load_contents_async(null, function(obj, res) {
+            try {
+                let [ok, contents] = f.load_contents_finish(res);
+                if (!ok) { cb(null); return; }
+                cb((contents instanceof Uint8Array)
+                    ? new TextDecoder().decode(contents)
+                    : imports.byteArray.toString(contents));
+            } catch (e) {
+                cb(null);
+            }
+        });
+    },
+
+    /**
+     * Resolve the computer's approximate location from its system IANA
+     * timezone, fully asynchronously, and cache it in this._sysLoc as
+     * { lat, lon, tz }. Triggers a redraw when done if the primary location
+     * is auto-detected. Falls back to DEFAULT_LAT/DEFAULT_LON (Budapest).
+     */
+    _resolveSystemLocationAsync: function() {
+        if (this._sysLoc) return;
+        let self = this;
+
+        let finish = function(tzName) {
+            let loc = { lat: DEFAULT_LAT, lon: DEFAULT_LON, tz: tzName || null };
+            let apply = function(coords) {
+                if (coords) { loc.lat = coords.lat; loc.lon = coords.lon; }
+                self._sysLoc = loc;
+                if (!self._isDestroyed && !self.use_manual_location) {
+                    self._onSettingChanged();
+                }
+            };
+            if (tzName) self._tzTabCoordsAsync(tzName, apply);
+            else apply(null);
+        };
+
+        // 1. GLib.TimeZone (no blocking file read).
         try {
             let id = GLib.TimeZone.new_local().get_identifier();
-            if (id && id.indexOf("/") !== -1) return id;
+            if (id && id.indexOf("/") !== -1) { finish(id); return; }
         } catch (e) {}
-        try {
-            let [ok, contents] = GLib.file_get_contents("/etc/timezone");
-            if (ok) {
-                let s = ((contents instanceof Uint8Array)
-                    ? new TextDecoder().decode(contents)
-                    : imports.byteArray.toString(contents)).trim();
-                if (s.indexOf("/") !== -1) return s;
-            }
-        } catch (e) {}
-        try {
-            let target = Gio.File.new_for_path("/etc/localtime")
-                .query_info("standard::symlink-target",
-                            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null)
-                .get_symlink_target();
-            let m = target && target.match(/zoneinfo\/(.+)$/);
-            if (m) return m[1];
-        } catch (e) {}
-        return null;
+
+        // 2. /etc/timezone (Debian/Ubuntu/Mint).
+        this._readTextFileAsync("/etc/timezone", function(text) {
+            let s = text && text.trim();
+            if (s && s.indexOf("/") !== -1) { finish(s); return; }
+
+            // 3. /etc/localtime symlink target.
+            let f = Gio.File.new_for_path("/etc/localtime");
+            f.query_info_async("standard::symlink-target",
+                Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+                GLib.PRIORITY_DEFAULT, null, function(obj, res) {
+                    let tzName = null;
+                    try {
+                        let target = f.query_info_finish(res).get_symlink_target();
+                        let m = target && target.match(/zoneinfo\/(.+)$/);
+                        if (m) tzName = m[1];
+                    } catch (e) {}
+                    finish(tzName);
+                });
+        });
+    },
+
+    /**
+     * Look up approximate coordinates for an IANA timezone name in the tzdata
+     * zone1970.tab / zone.tab table, asynchronously. cb({lat, lon}) or cb(null).
+     */
+    _tzTabCoordsAsync: function(tzName, cb) {
+        let self = this;
+        let paths = ["/usr/share/zoneinfo/zone1970.tab",
+                     "/usr/share/zoneinfo/zone.tab"];
+        let tryPath = function(idx) {
+            if (idx >= paths.length) { cb(null); return; }
+            self._readTextFileAsync(paths[idx], function(text) {
+                if (!text) { tryPath(idx + 1); return; }
+                let lines = text.split("\n");
+                for (let i = 0; i < lines.length; i++) {
+                    if (!lines[i] || lines[i][0] === "#") continue;
+                    let cols = lines[i].split("\t");
+                    if (cols.length < 3) continue;
+                    if (cols[2].trim() !== tzName) continue;
+                    cb(self._parseIso6709(cols[1].trim()));
+                    return;
+                }
+                tryPath(idx + 1);
+            });
+        };
+        tryPath(0);
     },
 
     /**
@@ -385,50 +454,12 @@ CalendariumDesklet.prototype = {
     },
 
     /**
-     * Approximate coordinates of a system IANA timezone, looked up in the
-     * tzdata zone1970.tab / zone.tab table. Returns { lat, lon } or null.
-     */
-    _tzTabCoords: function(tzName) {
-        let paths = ["/usr/share/zoneinfo/zone1970.tab",
-                     "/usr/share/zoneinfo/zone.tab"];
-        for (let p = 0; p < paths.length; p++) {
-            let text;
-            try {
-                let [ok, contents] = GLib.file_get_contents(paths[p]);
-                if (!ok) continue;
-                text = (contents instanceof Uint8Array)
-                    ? new TextDecoder().decode(contents)
-                    : imports.byteArray.toString(contents);
-            } catch (e) { continue; }
-            let lines = text.split("\n");
-            for (let i = 0; i < lines.length; i++) {
-                if (!lines[i] || lines[i][0] === "#") continue;
-                let cols = lines[i].split("\t");
-                if (cols.length < 3) continue;
-                if (cols[2].trim() !== tzName) continue;
-                return this._parseIso6709(cols[1].trim());
-            }
-        }
-        return null;
-    },
-
-    /**
      * Approximate location of the computer, derived from its system IANA
-     * timezone. Result is { lat, lon, tz }; cached for the desklet's lifetime.
-     * Falls back to DEFAULT_LAT/DEFAULT_LON (Budapest) when the timezone
-     * cannot be resolved to coordinates.
+     * timezone by _resolveSystemLocationAsync(). Returns the cached
+     * { lat, lon, tz }, or the Budapest default until resolution completes.
      */
     _systemLocation: function() {
-        if (this._sysLoc) return this._sysLoc;
-        let loc = { lat: DEFAULT_LAT, lon: DEFAULT_LON, tz: null };
-        let tzName = this._systemTimezoneName();
-        loc.tz = tzName;
-        if (tzName) {
-            let coords = this._tzTabCoords(tzName);
-            if (coords) { loc.lat = coords.lat; loc.lon = coords.lon; }
-        }
-        this._sysLoc = loc;
-        return loc;
+        return this._sysLoc || { lat: DEFAULT_LAT, lon: DEFAULT_LON, tz: null };
     },
 
     /**
