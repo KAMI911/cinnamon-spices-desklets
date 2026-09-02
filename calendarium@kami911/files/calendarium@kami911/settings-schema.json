@@ -94,7 +94,7 @@
             "keys": [
                 "use-manual-location",
                 "location-search",
-                "latitude", "longitude",
+                "latitude", "longitude", "primary-tz",
                 "city1-name", "city1-lat", "city1-lon", "city1-tz",
                 "city2-name", "city2-lat", "city2-lon", "city2-tz",
                 "city3-name", "city3-lat", "city3-lon", "city3-tz",
@@ -383,6 +383,14 @@
         "step": 0.0001,
         "units": "degrees",
         "description": "Longitude (positive = East)",
+        "dependency": "use-manual-location",
+        "indent": true
+    },
+    "primary-tz": {
+        "type": "entry",
+        "default": "",
+        "description": "Primary location timezone (IANA, e.g. Europe/Budapest)",
+        "tooltip": "Timezone used for the primary location's sunrise/sunset and moonrise/moonset times. Filled automatically when using city search. Leave empty to use the computer's system timezone.",
         "dependency": "use-manual-location",
         "indent": true
     },

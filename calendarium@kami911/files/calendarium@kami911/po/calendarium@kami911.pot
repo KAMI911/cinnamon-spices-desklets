@@ -683,6 +683,17 @@ msgstr ""
 msgid "Longitude (positive = East)"
 msgstr ""
 
+#. settings-schema.json->primary-tz->description
+msgid "Primary location timezone (IANA, e.g. Europe/Budapest)"
+msgstr ""
+
+#. settings-schema.json->primary-tz->tooltip
+msgid ""
+"Timezone used for the primary location's sunrise/sunset and moonrise/moonset "
+"times. Filled automatically when using city search. Leave empty to use the "
+"computer's system timezone."
+msgstr ""
+
 #. settings-schema.json->city1-name->description
 msgid "City 1 name (leave empty to disable)"
 msgstr ""

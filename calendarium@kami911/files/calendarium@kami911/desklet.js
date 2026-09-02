@@ -171,6 +171,7 @@ CalendariumDesklet.prototype = {
             () => this._onLocationSearchChanged());
         s.bind("latitude",             "latitude",            cb);
         s.bind("longitude",            "longitude",           cb);
+        s.bind("primary-tz",           "primary_tz",          cb);
         s.bind("city1-name", "city1_name",
             () => this._onCityNameChanged(1));
         s.bind("city1-lat",  "city1_lat",  cb);
@@ -281,6 +282,7 @@ CalendariumDesklet.prototype = {
             let r = results[0];
             self.settings.setValue("latitude",  r.lat);
             self.settings.setValue("longitude", r.lon);
+            self.settings.setValue("primary-tz", r.tz || "");
             self.settings.setValue("use-manual-location", true);
             return false;
         });
@@ -318,6 +320,16 @@ CalendariumDesklet.prototype = {
         } catch(e) {
             return null;
         }
+    },
+
+    /**
+     * UTC offset in hours to use for the primary location's Sun/Moon times.
+     * Uses the explicitly configured IANA timezone when set; otherwise returns
+     * null so the calculations fall back to the computer's system timezone
+     * (the default behaviour).
+     */
+    _getPrimaryUtcOffsetHours: function() {
+        return this._getCityUtcOffsetHours(this.primary_tz);
     },
 
     /**
@@ -1105,7 +1117,7 @@ CalendariumDesklet.prototype = {
         // Primary location
         let lat = this.use_manual_location ? this.latitude  : DEFAULT_LAT;
         let lon = this.use_manual_location ? this.longitude : DEFAULT_LON;
-        let sun = Sun.getSunTimes(now, lat, lon);
+        let sun = Sun.getSunTimes(now, lat, lon, this._getPrimaryUtcOffsetHours());
 
         let sunriseStr = this._sunStr(sun, "sunrise");
         let sunsetStr  = this._sunStr(sun, "sunset");
@@ -1250,7 +1262,7 @@ CalendariumDesklet.prototype = {
 
         let lat = this.use_manual_location ? this.latitude  : DEFAULT_LAT;
         let lon = this.use_manual_location ? this.longitude : DEFAULT_LON;
-        let mt  = Sun.getMoonTimes(now, lat, lon);
+        let mt  = Sun.getMoonTimes(now, lat, lon, this._getPrimaryUtcOffsetHours());
 
         let riseStr = mt.moonrise || _("No data");
         let setStr  = mt.moonset  || _("No data");

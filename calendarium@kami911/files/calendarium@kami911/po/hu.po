@@ -700,6 +700,20 @@ msgstr "Szélességi fok (pozitív = Észak)"
 msgid "Longitude (positive = East)"
 msgstr "Hosszúsági fok (pozitív = Kelet)"
 
+#. settings-schema.json->primary-tz->description
+msgid "Primary location timezone (IANA, e.g. Europe/Budapest)"
+msgstr "Elsődleges helyszín időzónája (IANA, pl. Europe/Budapest)"
+
+#. settings-schema.json->primary-tz->tooltip
+msgid ""
+"Timezone used for the primary location's sunrise/sunset and moonrise/moonset "
+"times. Filled automatically when using city search. Leave empty to use the "
+"computer's system timezone."
+msgstr ""
+"Az elsődleges helyszín nap- és holdkelte/-nyugta időpontjaihoz használt "
+"időzóna. A városkereső használatakor automatikusan kitöltődik. Üresen hagyva a "
+"számítógép rendszeridőzónája lesz érvényes."
+
 #. settings-schema.json->city1-name->description
 msgid "City 1 name (leave empty to disable)"
 msgstr "1. város neve (üresen hagyva kikapcsolt)"
