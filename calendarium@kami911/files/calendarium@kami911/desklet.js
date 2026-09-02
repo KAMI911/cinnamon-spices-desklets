@@ -176,6 +176,7 @@ CalendariumDesklet.prototype = {
         s.bind("latitude",             "latitude",            cb);
         s.bind("longitude",            "longitude",           cb);
         s.bind("primary-tz",           "primary_tz",          cb);
+        s.bind("use-primary-tz-for-clock", "use_primary_tz_for_clock", cb);
         s.bind("city1-name", "city1_name",
             () => this._onCityNameChanged(1));
         s.bind("city1-lat",  "city1_lat",  cb);
@@ -338,6 +339,47 @@ CalendariumDesklet.prototype = {
      */
     _getPrimaryUtcOffsetHours: function() {
         return this._getCityUtcOffsetHours(this.primary_tz);
+    },
+
+    /**
+     * IANA timezone name of the primary location: the explicit primary-tz
+     * setting, else the auto-detected system timezone, else null.
+     */
+    _primaryTimezoneName: function() {
+        if (this.primary_tz && this.primary_tz.trim()) return this.primary_tz.trim();
+        if (this._sysLoc && this._sysLoc.tz) return this._sysLoc.tz;
+        return null;
+    },
+
+    /**
+     * "Now" as a JS Date whose local calendar fields (year/month/date/hours…)
+     * represent the wall-clock time to display. Normally the computer's own
+     * time; when "use primary tz for clock" is enabled it is the primary
+     * location's wall-clock time instead.
+     */
+    _displayNow: function() {
+        let base = new Date();
+        if (!this.use_primary_tz_for_clock) return base;
+        let name = this._primaryTimezoneName();
+        if (!name) return base;
+        try {
+            let g = GLib.DateTime.new_now(GLib.TimeZone.new(name));
+            return new Date(g.get_year(), g.get_month() - 1, g.get_day_of_month(),
+                            g.get_hour(), g.get_minute(), g.get_second());
+        } catch (e) {
+            return base;
+        }
+    },
+
+    /**
+     * GLib.DateTime carrying the calendar fields of a JS Date, for strftime
+     * formatting (%A, %B, %H…). Only the field values are used, not the zone.
+     */
+    _glibFromDate: function(d) {
+        return GLib.DateTime.new_local(
+            d.getFullYear(), d.getMonth() + 1, d.getDate(),
+            d.getHours(), d.getMinutes(), d.getSeconds()
+        );
     },
 
     /**
@@ -868,7 +910,7 @@ CalendariumDesklet.prototype = {
             this._timeout = null;
         }
 
-        let now = new Date();
+        let now = this._displayNow();
         try { this._applyAppearance();      } catch(e) { global.logError("Calendarium _applyAppearance: "  + e); }
         try { this._updateDate(now);        } catch(e) { global.logError("Calendarium _updateDate: "        + e); }
         try { this._updateTime(now);        } catch(e) { global.logError("Calendarium _updateTime: "        + e); }
@@ -906,7 +948,7 @@ CalendariumDesklet.prototype = {
     /** Fast-path refresh for the time label only (1-second cadence). */
     _refreshClock: function() {
         if (this._isDestroyed) return false;
-        this._updateTime(new Date());
+        this._updateTime(this._displayNow());
         this._updateCityTimes();
         this._clockTimeout = Mainloop.timeout_add(
             1000, () => this._refreshClock()
@@ -999,7 +1041,7 @@ CalendariumDesklet.prototype = {
         this._labelDate.visible = this.show_date;
         if (!this.show_date) return;
         try {
-            let dt  = GLib.DateTime.new_now_local();
+            let dt  = this._glibFromDate(now);
             // All real format strings contain at least one '%'.
             // The sentinel "custom" (and any label text a Cinnamon version might
             // store instead of the value) does not — so this check is resilient
@@ -1019,7 +1061,7 @@ CalendariumDesklet.prototype = {
         this._labelTime.visible = this.show_time;
         if (!this.show_time) return;
         try {
-            let dt  = GLib.DateTime.new_now_local();
+            let dt  = this._glibFromDate(now);
             let fmt;
             if (this.time_format === "12h") {
                 fmt = this.show_seconds ? "%I:%M:%S %p" : "%I:%M %p";
@@ -1069,7 +1111,7 @@ CalendariumDesklet.prototype = {
         if (this.show_month_progress) {
             let dayOfMonth  = now.getDate();
             let daysInMonth = new Date(y, now.getMonth() + 1, 0).getDate();
-            let monthName   = (GLib.DateTime.new_now_local().format("%B")) || "";
+            let monthName   = (this._glibFromDate(now).format("%B")) || "";
             let sep = (this.progress_separator || "\u00b7").charAt(0);
             let mpPrefix = this.show_week_number ? " " + sep + " " : "";
             let text = mpPrefix + monthName + " " + sep + " " +

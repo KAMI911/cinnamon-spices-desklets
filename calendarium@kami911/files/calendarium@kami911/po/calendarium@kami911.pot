@@ -700,6 +700,17 @@ msgid ""
 "computer's system timezone."
 msgstr ""
 
+#. settings-schema.json->use-primary-tz-for-clock->description
+msgid "Show the clock and date in the primary location's timezone"
+msgstr ""
+
+#. settings-schema.json->use-primary-tz-for-clock->tooltip
+msgid ""
+"When off, the clock, date and calendar follow the computer's own time. When "
+"on, they use the primary location's timezone (from the field above, or the "
+"auto-detected system timezone)."
+msgstr ""
+
 #. settings-schema.json->city1-name->description
 msgid "City 1 name (leave empty to disable)"
 msgstr ""
