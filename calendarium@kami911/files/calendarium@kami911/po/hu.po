@@ -667,8 +667,17 @@ msgid "Show equinox and solstice"
 msgstr "Napéjegyenlőség és napforduló megjelenítése"
 
 #. settings-schema.json->use-manual-location->description
-msgid "Use manual location (default: Budapest, Hungary)"
-msgstr "Manuális helyszín megadása (alap: Budapest, Magyarország)"
+msgid "Use manual location"
+msgstr "Manuális helyszín megadása"
+
+#. settings-schema.json->use-manual-location->tooltip
+msgid ""
+"When off, the location is detected automatically from the computer's system "
+"timezone (falling back to Budapest, Hungary if it cannot be determined)."
+msgstr ""
+"Kikapcsolva a helyszín automatikusan a számítógép rendszeridőzónája alapján "
+"kerül meghatározásra (ha ez nem sikerül, Budapest, Magyarország az "
+"alapértelmezés)."
 
 #. settings-schema.json->location-search->description
 msgid "Search city to auto-fill coordinates"

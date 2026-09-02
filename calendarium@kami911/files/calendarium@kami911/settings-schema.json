@@ -354,7 +354,8 @@
     "use-manual-location": {
         "type": "checkbox",
         "default": false,
-        "description": "Use manual location (default: Budapest, Hungary)"
+        "description": "Use manual location",
+        "tooltip": "When off, the location is detected automatically from the computer's system timezone (falling back to Budapest, Hungary if it cannot be determined)."
     },
     "location-search": {
         "type": "entry",

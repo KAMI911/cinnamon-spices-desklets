@@ -87,7 +87,9 @@ const Calendars    = imports.calendars.Calendars;
 
 Geocoder.init(DESKLET_DIR);
 
-// ── Default location: Budapest, Hungary ───────────────────────────────────
+// ── Default location ─────────────────────────────────────────────────────
+// Used only as a last-resort fallback when the computer's system timezone
+// cannot be resolved to coordinates (see _systemLocation). Budapest, Hungary.
 const DEFAULT_LAT  = 47.4979;
 const DEFAULT_LON  = 19.0402;
 const FOLKDAY_DIR  = DESKLET_DIR + "/data/folkdays";
@@ -330,6 +332,99 @@ CalendariumDesklet.prototype = {
      */
     _getPrimaryUtcOffsetHours: function() {
         return this._getCityUtcOffsetHours(this.primary_tz);
+    },
+
+    /**
+     * The computer's own IANA timezone name (e.g. "Europe/Budapest"), or null
+     * if it cannot be determined.
+     */
+    _systemTimezoneName: function() {
+        try {
+            let id = GLib.TimeZone.new_local().get_identifier();
+            if (id && id.indexOf("/") !== -1) return id;
+        } catch (e) {}
+        try {
+            let [ok, contents] = GLib.file_get_contents("/etc/timezone");
+            if (ok) {
+                let s = ((contents instanceof Uint8Array)
+                    ? new TextDecoder().decode(contents)
+                    : imports.byteArray.toString(contents)).trim();
+                if (s.indexOf("/") !== -1) return s;
+            }
+        } catch (e) {}
+        try {
+            let target = Gio.File.new_for_path("/etc/localtime")
+                .query_info("standard::symlink-target",
+                            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null)
+                .get_symlink_target();
+            let m = target && target.match(/zoneinfo\/(.+)$/);
+            if (m) return m[1];
+        } catch (e) {}
+        return null;
+    },
+
+    /**
+     * Parse an ISO 6709 "±DDMM[SS]±DDDMM[SS]" string (as used in tzdata's
+     * zone1970.tab) to { lat, lon } decimal degrees, or null.
+     */
+    _parseIso6709: function(s) {
+        let m = s.match(/^([+-]\d{2})(\d{2})(\d{2})?([+-]\d{3})(\d{2})(\d{2})?$/);
+        if (!m) return null;
+        let latSign = m[1][0] === "-" ? -1 : 1;
+        let lonSign = m[4][0] === "-" ? -1 : 1;
+        let lat = parseInt(m[1], 10)
+            + latSign * (parseInt(m[2], 10) + (m[3] ? parseInt(m[3], 10) : 0) / 60) / 60;
+        let lon = parseInt(m[4], 10)
+            + lonSign * (parseInt(m[5], 10) + (m[6] ? parseInt(m[6], 10) : 0) / 60) / 60;
+        return { lat: Math.round(lat * 10000) / 10000,
+                 lon: Math.round(lon * 10000) / 10000 };
+    },
+
+    /**
+     * Approximate coordinates of a system IANA timezone, looked up in the
+     * tzdata zone1970.tab / zone.tab table. Returns { lat, lon } or null.
+     */
+    _tzTabCoords: function(tzName) {
+        let paths = ["/usr/share/zoneinfo/zone1970.tab",
+                     "/usr/share/zoneinfo/zone.tab"];
+        for (let p = 0; p < paths.length; p++) {
+            let text;
+            try {
+                let [ok, contents] = GLib.file_get_contents(paths[p]);
+                if (!ok) continue;
+                text = (contents instanceof Uint8Array)
+                    ? new TextDecoder().decode(contents)
+                    : imports.byteArray.toString(contents);
+            } catch (e) { continue; }
+            let lines = text.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                if (!lines[i] || lines[i][0] === "#") continue;
+                let cols = lines[i].split("\t");
+                if (cols.length < 3) continue;
+                if (cols[2].trim() !== tzName) continue;
+                return this._parseIso6709(cols[1].trim());
+            }
+        }
+        return null;
+    },
+
+    /**
+     * Approximate location of the computer, derived from its system IANA
+     * timezone. Result is { lat, lon, tz }; cached for the desklet's lifetime.
+     * Falls back to DEFAULT_LAT/DEFAULT_LON (Budapest) when the timezone
+     * cannot be resolved to coordinates.
+     */
+    _systemLocation: function() {
+        if (this._sysLoc) return this._sysLoc;
+        let loc = { lat: DEFAULT_LAT, lon: DEFAULT_LON, tz: null };
+        let tzName = this._systemTimezoneName();
+        loc.tz = tzName;
+        if (tzName) {
+            let coords = this._tzTabCoords(tzName);
+            if (coords) { loc.lat = coords.lat; loc.lon = coords.lon; }
+        }
+        this._sysLoc = loc;
+        return loc;
     },
 
     /**
@@ -1115,8 +1210,9 @@ CalendariumDesklet.prototype = {
         if (!this.show_sun) return;
 
         // Primary location
-        let lat = this.use_manual_location ? this.latitude  : DEFAULT_LAT;
-        let lon = this.use_manual_location ? this.longitude : DEFAULT_LON;
+        let sysLoc = this._systemLocation();
+        let lat = this.use_manual_location ? this.latitude  : sysLoc.lat;
+        let lon = this.use_manual_location ? this.longitude : sysLoc.lon;
         let sun = Sun.getSunTimes(now, lat, lon, this._getPrimaryUtcOffsetHours());
 
         let sunriseStr = this._sunStr(sun, "sunrise");
@@ -1260,8 +1356,9 @@ CalendariumDesklet.prototype = {
         this._moonRiseRow.visible = this.show_moonrise;
         if (!this.show_moonrise) return;
 
-        let lat = this.use_manual_location ? this.latitude  : DEFAULT_LAT;
-        let lon = this.use_manual_location ? this.longitude : DEFAULT_LON;
+        let sysLoc = this._systemLocation();
+        let lat = this.use_manual_location ? this.latitude  : sysLoc.lat;
+        let lon = this.use_manual_location ? this.longitude : sysLoc.lon;
         let mt  = Sun.getMoonTimes(now, lat, lon, this._getPrimaryUtcOffsetHours());
 
         let riseStr = mt.moonrise || _("No data");

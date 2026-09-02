@@ -652,7 +652,13 @@ msgid "Show equinox and solstice"
 msgstr ""
 
 #. settings-schema.json->use-manual-location->description
-msgid "Use manual location (default: Budapest, Hungary)"
+msgid "Use manual location"
+msgstr ""
+
+#. settings-schema.json->use-manual-location->tooltip
+msgid ""
+"When off, the location is detected automatically from the computer's system "
+"timezone (falling back to Budapest, Hungary if it cannot be determined)."
 msgstr ""
 
 #. settings-schema.json->location-search->description
