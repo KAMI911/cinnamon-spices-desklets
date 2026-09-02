@@ -238,6 +238,10 @@ CalendariumDesklet.prototype = {
         s.bind("icon-size",        "icon_size",        cb);
         s.bind("text-scale",       "text_scale",       cb);
         s.bind("bg-opacity",       "bg_opacity",       cb);
+        s.bind("show-border",      "show_border",      cb);
+        s.bind("border-width",     "border_width",     cb);
+        s.bind("border-color",     "border_color",     cb);
+        s.bind("border-radius",    "border_radius",    cb);
     },
 
     /**
@@ -929,6 +933,15 @@ CalendariumDesklet.prototype = {
         let containerStyle =
             "font-size: " + basePx + "px;" +
             "background-color: rgba(0, 0, 0, " + op.toFixed(2) + ");";
+
+        if (this.show_border) {
+            let bw = Math.max(1, Math.min(10, Math.round(this.border_width || 1)));
+            let bc = this.border_color || "rgba(255,255,255,0.35)";
+            let br = Math.max(0, Math.min(40, Math.round(this.border_radius || 0)));
+            containerStyle +=
+                "border: " + bw + "px solid " + bc + ";" +
+                "border-radius: " + br + "px;";
+        }
 
         // Icon / symbol size for moon and zodiac symbols
         let px = this._getIconPx();

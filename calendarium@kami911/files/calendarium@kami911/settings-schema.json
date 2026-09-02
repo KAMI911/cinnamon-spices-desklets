@@ -134,7 +134,8 @@
         "section-appearance": {
             "type": "section",
             "title": "Appearance",
-            "keys": ["icon-size", "text-scale", "bg-opacity"]
+            "keys": ["icon-size", "text-scale", "bg-opacity",
+                     "show-border", "border-width", "border-color", "border-radius"]
         }
     },
 
@@ -674,6 +675,41 @@
         "step": 0.05,
         "description": "Background opacity",
         "tooltip": "0 = fully transparent (wallpaper shows through), 1 = solid black background"
+    },
+    "show-border": {
+        "type": "checkbox",
+        "default": false,
+        "description": "Draw a border around the desklet"
+    },
+    "border-width": {
+        "type": "spinbutton",
+        "default": 1,
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "units": "pixels",
+        "description": "Border width",
+        "dependency": "show-border",
+        "indent": true
+    },
+    "border-color": {
+        "type": "colorchooser",
+        "default": "rgba(255,255,255,0.35)",
+        "description": "Border color",
+        "dependency": "show-border",
+        "indent": true
+    },
+    "border-radius": {
+        "type": "spinbutton",
+        "default": 0,
+        "min": 0,
+        "max": 40,
+        "step": 1,
+        "units": "pixels",
+        "description": "Corner radius",
+        "tooltip": "0 = square corners",
+        "dependency": "show-border",
+        "indent": true
     },
 
     "show-julian": {

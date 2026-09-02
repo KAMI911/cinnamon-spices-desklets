@@ -966,6 +966,26 @@ msgid ""
 "0 = fully transparent (wallpaper shows through), 1 = solid black background"
 msgstr "0 = teljesen átlátszó (áttűnik a háttérkép), 1 = tömör fekete háttér"
 
+#. settings-schema.json->show-border->description
+msgid "Draw a border around the desklet"
+msgstr "Keret rajzolása a desklet köré"
+
+#. settings-schema.json->border-width->description
+msgid "Border width"
+msgstr "Keret vastagsága"
+
+#. settings-schema.json->border-color->description
+msgid "Border color"
+msgstr "Keret színe"
+
+#. settings-schema.json->border-radius->description
+msgid "Corner radius"
+msgstr "Sarkok lekerekítése"
+
+#. settings-schema.json->border-radius->tooltip
+msgid "0 = square corners"
+msgstr "0 = szögletes sarkok"
+
 #. settings-schema.json->show-julian->description
 msgid "Show Julian calendar date"
 msgstr "Julián naptár dátumának megjelenítése"

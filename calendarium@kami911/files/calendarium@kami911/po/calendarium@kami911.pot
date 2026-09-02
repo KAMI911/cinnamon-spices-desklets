@@ -932,6 +932,26 @@ msgid ""
 "0 = fully transparent (wallpaper shows through), 1 = solid black background"
 msgstr ""
 
+#. settings-schema.json->show-border->description
+msgid "Draw a border around the desklet"
+msgstr ""
+
+#. settings-schema.json->border-width->description
+msgid "Border width"
+msgstr ""
+
+#. settings-schema.json->border-color->description
+msgid "Border color"
+msgstr ""
+
+#. settings-schema.json->border-radius->description
+msgid "Corner radius"
+msgstr ""
+
+#. settings-schema.json->border-radius->tooltip
+msgid "0 = square corners"
+msgstr ""
+
 #. settings-schema.json->show-julian->description
 msgid "Show Julian calendar date"
 msgstr ""
