@@ -398,6 +398,7 @@ msgstr ""
 msgid "Wikipedia (Internet Required)"
 msgstr ""
 
+#. settings-schema.json->page-appearance->title
 #. settings-schema.json->section-appearance->title
 msgid "Appearance"
 msgstr ""

@@ -1,7 +1,7 @@
 {
     "settingsLayout": {
         "type": "layout",
-        "pages": ["page-general", "page-location", "page-wikipedia"],
+        "pages": ["page-general", "page-location", "page-appearance", "page-wikipedia"],
 
         "page-general": {
             "type": "page",
@@ -16,8 +16,7 @@
                 "section-sun",
                 "section-zodiac",
                 "section-namedays",
-                "section-altcal",
-                "section-appearance"
+                "section-altcal"
             ]
         },
 
@@ -25,6 +24,12 @@
             "type": "page",
             "title": "Location",
             "sections": ["section-location"]
+        },
+
+        "page-appearance": {
+            "type": "page",
+            "title": "Appearance",
+            "sections": ["section-appearance"]
         },
 
         "page-wikipedia": {
